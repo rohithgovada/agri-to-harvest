@@ -1,0 +1,22 @@
+{
+  "name": "agri-to-harvest",
+  "version": "1.0.0",
+  "description": "Turning Vegetable Waste into Farming Wealth - Circular Agricultural Waste & Organic Compost Marketplace",
+  "scripts": {
+    "start": "node server/server.js",
+    "build": "npm run build --prefix client",
+    "server": "npm start --prefix server",
+    "client": "npm run dev --prefix client",
+    "test": "npm test --prefix server"
+  },
+  "keywords": [
+    "agriculture",
+    "compost",
+    "waste-management",
+    "circular-economy",
+    "organic-farming",
+    "dti-project"
+  ],
+  "author": "Agri to Harvest Team",
+  "license": "ISC"
+}
