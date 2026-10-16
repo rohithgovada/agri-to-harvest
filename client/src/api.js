@@ -1,6 +1,19 @@
+import { handleMockRequest } from './mockBackend';
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export async function request(endpoint, options = {}) {
+  // If running on GitHub Pages and no custom API URL is configured, use mock backend directly for zero-latency, glitch-free demo
+  const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+  if (isGitHubPages && !import.meta.env.VITE_API_URL) {
+    try {
+      return await handleMockRequest(endpoint, options);
+    } catch (mockErr) {
+      console.warn('[MockBackend Error]', mockErr);
+      throw mockErr;
+    }
+  }
+
   const token = localStorage.getItem('ath_token');
   const headers = {
     'Content-Type': 'application/json',
@@ -8,22 +21,39 @@ export async function request(endpoint, options = {}) {
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-  const data = await response.json().catch(() => ({}));
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
 
-  if (!response.ok) {
-    const errorMsg = data.message || `Request failed with status ${response.status}`;
-    const error = new Error(errorMsg);
-    error.status = response.status;
-    error.data = data;
-    throw error;
+    // If server returned 404 (e.g. static host without /api handler), fallback to mock backend
+    if (response.status === 404 || response.status === 502 || response.status === 503) {
+      console.warn(`[API] ${endpoint} returned ${response.status}. Falling back to client demo engine.`);
+      return await handleMockRequest(endpoint, options);
+    }
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorMsg = data.message || `Request failed with status ${response.status}`;
+      const error = new Error(errorMsg);
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+
+    return data;
+  } catch (netErr) {
+    // If backend is unavailable or offline, transparently fall back to client mock backend
+    console.warn(`[API Network Fallback] Backend unreachable (${netErr.message}). Routing ${endpoint} to client demo engine.`);
+    return await handleMockRequest(endpoint, options);
   }
-
-  return data;
 }
 
 export const api = {
